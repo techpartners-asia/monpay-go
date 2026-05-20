@@ -41,6 +41,15 @@ if err != nil {
 	return err
 }
 _ = checked
+
+refund, err := client.RefundTransaction(monpay.MiniAppRefundInput{
+	InvoiceID:   invoice.Result.ID,
+	Description: "Customer requested refund",
+})
+if err != nil {
+	return err
+}
+_ = refund
 ```
 
 Mini App methods:
@@ -50,4 +59,27 @@ Mini App methods:
 - `CreateInvoice`
 - `CheckInvoice`
 - `CancelInvoice`
-- `Refund`
+- `RefundTransaction`
+
+## Push notification
+
+```go
+admin := monpay.New(
+	"https://z-wallet.monpay.mn",
+	"developer",
+	"Password1",
+	"",
+)
+
+notification, err := admin.SendPushNotification(monpay.MonpayPushNotificationInput{
+	UserPhone: "94071041",
+	Title:     "test",
+	Text:      "test",
+	ActionKey: "tino_charge",
+	Action:    "tino_charge",
+})
+if err != nil {
+	return err
+}
+_ = notification
+```

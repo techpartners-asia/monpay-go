@@ -30,6 +30,38 @@ func TestMiniAppUserInfoAcceptsNumericPhone(t *testing.T) {
 	}
 }
 
+func TestMiniAppRefundResponseUsesDocumentShape(t *testing.T) {
+	var response MiniAppRefundResponse
+	err := json.Unmarshal([]byte(`{
+		"code": "SUCCESS",
+		"info": "success",
+		"intCode": 0,
+		"result": {
+			"id": 12345,
+			"txnId": "TXN202605200001",
+			"refundTxnId": "RF202605200010",
+			"amount": 5000,
+			"receiver": "your_branch_username",
+			"phone": "99112233",
+			"miniAppId": 10,
+			"status": "REFUNDED",
+			"statusInfo": "Гүйлгээ буцаагдсан",
+			"description": "Customer requested refund",
+			"createDate": "2026-05-20T12:00:00",
+			"updateDate": "2026-05-20T12:10:00"
+		}
+	}`), &response)
+	if err != nil {
+		t.Fatalf("failed to unmarshal refund response: %v", err)
+	}
+	if response.Result.RefundTxnID != "RF202605200010" {
+		t.Fatalf("unexpected refund txn id: %s", response.Result.RefundTxnID)
+	}
+	if response.Result.CreateDate != "2026-05-20T12:00:00" {
+		t.Fatalf("unexpected create date: %s", response.Result.CreateDate)
+	}
+}
+
 func TestMiniAppBusinessErrorReturned(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

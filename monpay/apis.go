@@ -22,6 +22,11 @@ var (
 		Url:    "/rest/branch/qrpurchase/check?uuid=",
 		Method: http.MethodGet,
 	}
+	// MonpayPushNotification [Хэрэглэгч рүү push notification илгээх]
+	MonpayPushNotification = utils.API{
+		Url:    "/rest/admin/notification/push",
+		Method: http.MethodGet,
+	}
 
 	// MonpayMiniAppAuthToken [Mini App access token авах]
 	MonpayMiniAppAuthToken = utils.API{
@@ -48,7 +53,12 @@ var (
 		Url:    "/api/oauth/invoice/cancel",
 		Method: http.MethodGet,
 	}
-	// MonpayMiniAppInvoiceRefund [Mini App нэхэмжлэх буцаах]
+	// MonpayMiniAppRefund [Mini App transaction refund хийх]
+	MonpayMiniAppRefund = utils.API{
+		Url:    "/api/oauth/refund",
+		Method: http.MethodPost,
+	}
+	// MonpayMiniAppInvoiceRefund [Deprecated: use MonpayMiniAppRefund]
 	MonpayMiniAppInvoiceRefund = utils.API{
 		Url:    "/api/oauth/invoice/refund",
 		Method: http.MethodGet,
@@ -70,6 +80,7 @@ func (m *monpay) httpRequestMonpay(body interface{}, api utils.API, urlExt strin
 	}
 	req.SetBasicAuth(m.username, m.accoutnId)
 	req.Header.Add("Content-Type", utils.HttpContent)
+	req.Header.Add("Accept", utils.HttpContent)
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

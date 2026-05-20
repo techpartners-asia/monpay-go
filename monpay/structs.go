@@ -145,6 +145,30 @@ type (
 		Status string  `schema:"status"`
 		TnxId  string  `schema:"tnxId"`
 	}
+
+	MonpayPushNotificationInput struct {
+		UserPhone string
+		Title     string
+		Text      string
+		ActionKey string
+		Action    string
+	}
+
+	MonpayPushNotificationResponse struct {
+		Code    string                       `json:"code"`
+		Info    string                       `json:"info"`
+		IntCode int                          `json:"intCode"`
+		Result  MonpayPushNotificationResult `json:"result"`
+	}
+
+	MonpayPushNotificationResult struct {
+		UserPhone string `json:"userPhone"`
+		Title     string `json:"title"`
+		Text      string `json:"text"`
+		ActionKey string `json:"actionKey"`
+		Action    string `json:"action"`
+		Status    string `json:"status"`
+	}
 )
 
 type (
@@ -212,6 +236,42 @@ type (
 		BankName        Bank        `json:"bankName"`        // Банк нэр (Only B2B connections)
 		BankAccount     string      `json:"bankAccount"`     // Банкны дансны дугаар (Only B2B connections)
 		BankAccountName string      `json:"bankAccountName"` // Данс эзэмшигчийн нэр (Only B2B connections)
+	}
+
+	MiniAppRefundInput struct {
+		InvoiceID   int
+		TxnNo       string
+		Description string
+		AccessToken string
+	}
+
+	MiniAppRefundRequest struct {
+		InvoiceID   int    `json:"invoiceId,omitempty"` // Refund хийх invoice ID
+		TxnNo       string `json:"txnNo,omitempty"`     // Refund хийх transaction дугаар
+		Description string `json:"description"`         // Refund тайлбар
+	}
+
+	MiniAppRefundResponse struct {
+		Code    string              `json:"code"`
+		Info    string              `json:"info"`
+		IntCode int                 `json:"intCode"`
+		Result  MiniAppRefundResult `json:"result"`
+	}
+
+	MiniAppRefundResult struct {
+		ID          int            `json:"id"`          // Invoice-ийн ID
+		TxnID       string         `json:"txnId"`       // Анхны transaction ID
+		RefundTxnID string         `json:"refundTxnId"` // Refund transaction ID
+		Amount      float64        `json:"amount"`      // Буцаасан дүн
+		Receiver    string         `json:"receiver"`    // Merchant branch username
+		Phone       FlexibleString `json:"phone"`       // Хэрэглэгчийн утас
+		MiniAppID   int            `json:"miniAppId"`   // Mini App ID
+		Status      string         `json:"status"`      // REFUNDED, REFUNDFAILED
+		StatusCode  int            `json:"statusCode"`  // Алдааны код
+		StatusInfo  string         `json:"statusInfo"`  // Refund төлөвийн мэдээлэл
+		Description string         `json:"description"` // Transaction тайлбар
+		CreateDate  string         `json:"createDate"`  // Invoice үүссэн огноо
+		UpdateDate  string         `json:"updateDate"`  // Refund шинэчлэгдсэн огноо
 	}
 
 	DeeplinkCreateRequest  = MiniAppCreateInvoiceRequest

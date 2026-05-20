@@ -29,6 +29,7 @@ type monpay struct {
 type Monpay interface {
 	GenerateQr(input MonpayQrInput) (MonpayQrResponse, error)
 	CheckQr(uuid string) (MonpayCheckResponse, error)
+	SendPushNotification(input MonpayPushNotificationInput) (MonpayPushNotificationResponse, error)
 	CallbackParser(url *url.URL) MonpayCallback
 }
 
@@ -94,6 +95,35 @@ func (m *monpay) CheckQr(uuid string) (response MonpayCheckResponse, err error) 
 	return
 }
 
+// SendPushNotification [Хэрэглэгч рүү push notification илгээх]
+func (m *monpay) SendPushNotification(input MonpayPushNotificationInput) (MonpayPushNotificationResponse, error) {
+	query := url.Values{}
+	query.Set("userPhone", input.UserPhone)
+	query.Set("title", input.Title)
+	query.Set("text", input.Text)
+	query.Set("actionKey", input.ActionKey)
+	query.Set("action", input.Action)
+
+	var response MonpayPushNotificationResponse
+	res, err := m.httpRequestMonpay(nil, MonpayPushNotification, "?"+query.Encode())
+	if err != nil {
+		return MonpayPushNotificationResponse{}, err
+	}
+	if err = json.Unmarshal(res, &response); err != nil {
+		return MonpayPushNotificationResponse{}, err
+	}
+	if response.IntCode != 0 {
+		return MonpayPushNotificationResponse{}, &APIError{
+			Message: "Monpay push notification error",
+			Code:    response.Code,
+			IntCode: response.IntCode,
+			Info:    response.Info,
+			Body:    string(res),
+		}
+	}
+	return response, nil
+}
+
 var decoder = schema.NewDecoder()
 
 func (m *monpay) CallbackParser(url *url.URL) (response MonpayCallback) {
@@ -144,7 +174,12 @@ type Deeplink interface {
 	CancelInvoice(invoiceID int) (response MiniAppInvoiceResponse, err error)
 
 	// Refund [Mini App нэхэмжлэх буцаах]
+	//
+	// Deprecated: use RefundTransaction.
 	Refund(invoiceID int) (response MiniAppInvoiceResponse, err error)
+
+	// RefundTransaction [Mini App-аар хийгдсэн transaction refund хийх]
+	RefundTransaction(input MiniAppRefundInput) (response MiniAppRefundResponse, err error)
 
 	CreateDeeplink(amount float64, invoiceType InvoiceType, branchUsername, desc, invoiceId string) (response DeeplinkCreateResponse, err error)
 	CheckInvoice(invoiceID int) (response MiniAppInvoiceResponse, err error)
@@ -314,8 +349,28 @@ func (d *deeplink) CancelInvoice(invoiceID int) (response MiniAppInvoiceResponse
 }
 
 // Refund [Mini App нэхэмжлэх буцаах]
+//
+// Deprecated: use RefundTransaction.
 func (d *deeplink) Refund(invoiceID int) (response MiniAppInvoiceResponse, err error) {
 	return d.invoiceAction(invoiceID, MonpayMiniAppInvoiceRefund)
+}
+
+// RefundTransaction [Mini App-аар хийгдсэн transaction refund хийх]
+func (d *deeplink) RefundTransaction(input MiniAppRefundInput) (response MiniAppRefundResponse, err error) {
+	if input.InvoiceID <= 0 && strings.TrimSpace(input.TxnNo) == "" {
+		return MiniAppRefundResponse{}, errors.New("monpay refund invoice id or transaction no is required")
+	}
+
+	body := MiniAppRefundRequest{
+		InvoiceID:   input.InvoiceID,
+		TxnNo:       input.TxnNo,
+		Description: input.Description,
+	}
+	err = d.httpRequestDeeplink(body, &response, MonpayMiniAppRefund, "", input.AccessToken)
+	if err != nil {
+		return MiniAppRefundResponse{}, err
+	}
+	return response, nil
 }
 
 func (d *deeplink) invoiceAction(invoiceID int, api utils.API) (MiniAppInvoiceResponse, error) {

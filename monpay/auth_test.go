@@ -74,6 +74,63 @@ func TestMiniAppServerDownReturnsError(t *testing.T) {
 	}
 }
 
+func TestSendPushNotification(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/rest/admin/notification/push" {
+			http.NotFound(w, r)
+			return
+		}
+
+		username, password, ok := r.BasicAuth()
+		if !ok || username != "developer" || password != "Password1" {
+			t.Fatalf("unexpected basic auth: %s/%s ok=%v", username, password, ok)
+		}
+		if r.Header.Get("Accept") != "application/json" {
+			t.Fatalf("unexpected accept header: %s", r.Header.Get("Accept"))
+		}
+
+		query := r.URL.Query()
+		if query.Get("userPhone") != "94071041" ||
+			query.Get("title") != "test" ||
+			query.Get("text") != "test" ||
+			query.Get("actionKey") != "tino_charge" ||
+			query.Get("action") != "tino_charge" {
+			t.Fatalf("unexpected push query: %s", r.URL.RawQuery)
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"code":    "SUCCESS",
+			"info":    "Push notification sent",
+			"intCode": 0,
+			"result": map[string]interface{}{
+				"userPhone": "94071041",
+				"title":     "test",
+				"text":      "test",
+				"actionKey": "tino_charge",
+				"action":    "tino_charge",
+				"status":    "SENT",
+			},
+		})
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "developer", "Password1", "")
+	response, err := client.SendPushNotification(MonpayPushNotificationInput{
+		UserPhone: "94071041",
+		Title:     "test",
+		Text:      "test",
+		ActionKey: "tino_charge",
+		Action:    "tino_charge",
+	})
+	if err != nil {
+		t.Fatalf("send push notification failed: %v", err)
+	}
+	if response.Result.Status != "SENT" {
+		t.Fatalf("unexpected push status: %s", response.Result.Status)
+	}
+}
+
 func newMiniAppMockServer(t *testing.T, clientAuthCalls *atomic.Int32, userAuthCalls *atomic.Int32) *httptest.Server {
 	t.Helper()
 
@@ -157,6 +214,16 @@ func newMiniAppMockServer(t *testing.T, clientAuthCalls *atomic.Int32, userAuthC
 				t.Fatalf("unexpected refund invoiceId: %s", r.URL.RawQuery)
 			}
 			writeInvoiceResponse(w, 42, "REFUNDED")
+		case "/api/oauth/refund":
+			requireAuth(t, r, "Bearer client-token")
+			var req MiniAppRefundRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decode refund request: %v", err)
+			}
+			if req.InvoiceID != 42 && req.TxnNo != "TXN202605200001" {
+				t.Fatalf("unexpected refund request: %+v", req)
+			}
+			writeRefundResponse(w, req)
 		default:
 			http.NotFound(w, r)
 		}
@@ -189,6 +256,33 @@ func writeInvoiceResponse(w http.ResponseWriter, id int, status string) {
 			"statusInfo":  "ok",
 			"redirectUri": "https://app.example/callback",
 			"invoiceType": "P2B",
+		},
+	})
+}
+
+func writeRefundResponse(w http.ResponseWriter, req MiniAppRefundRequest) {
+	txnID := req.TxnNo
+	if txnID == "" {
+		txnID = "TXN202605200001"
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"code":    "SUCCESS",
+		"info":    "success",
+		"intCode": 0,
+		"result": map[string]interface{}{
+			"id":          42,
+			"txnId":       txnID,
+			"refundTxnId": "RF202605200010",
+			"amount":      5000,
+			"receiver":    "branch",
+			"phone":       "99112233",
+			"miniAppId":   99,
+			"status":      "REFUNDED",
+			"statusCode":  0,
+			"statusInfo":  "Гүйлгээ буцаагдсан",
+			"description": req.Description,
+			"createDate":  "2026-05-20T12:00:00",
+			"updateDate":  "2026-05-20T12:10:00",
 		},
 	})
 }
