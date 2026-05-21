@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/techpartners-asia/monpay-go/utils"
 	"golang.org/x/sync/singleflight"
+	"resty.dev/v3"
 )
 
 type monpay struct {
@@ -24,6 +25,7 @@ type monpay struct {
 	username    string
 	accoutnId   string
 	callbackurl string
+	client      *resty.Client
 }
 
 type Monpay interface {
@@ -35,10 +37,11 @@ type Monpay interface {
 
 func New(endpoint, username, accountId, callback string) Monpay {
 	return &monpay{
-		endpoint:    endpoint,
+		endpoint:    strings.TrimRight(endpoint, "/"),
 		username:    username,
 		accoutnId:   accountId,
 		callbackurl: callback,
+		client:      newRestyClient(),
 	}
 }
 
@@ -148,7 +151,7 @@ type deeplink struct {
 	userToken    *AccessToken
 	mu           sync.RWMutex
 	authGroup    singleflight.Group
-	client       *http.Client
+	client       *resty.Client
 }
 
 type AccessToken struct {
@@ -189,8 +192,8 @@ type Deeplink interface {
 // Option defines an option for Mini App initialization.
 type Option func(*deeplink)
 
-// WithClient [Custom http.Client ашиглах]
-func WithClient(client *http.Client) Option {
+// WithClient [Custom resty.Client ашиглах]
+func WithClient(client *resty.Client) Option {
 	return func(d *deeplink) {
 		if client != nil {
 			d.client = client
@@ -225,7 +228,7 @@ func NewDeeplink(endpoint, id, secret, grantType, webhookUrl, redirectUrl string
 		grantType:    grantType,
 		webhookUrl:   webhookUrl,
 		redirectUrl:  redirectUrl,
-		client:       &http.Client{Transport: newTransport(), Timeout: 60 * time.Second},
+		client:       newRestyClient(),
 	}
 
 	for _, opt := range options {
@@ -421,6 +424,12 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func newRestyClient() *resty.Client {
+	return resty.New().
+		SetTransport(newTransport()).
+		SetTimeout(60 * time.Second)
 }
 
 // newTransport creates an http.Transport with sensible defaults.

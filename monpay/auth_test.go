@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
+
+	"resty.dev/v3"
 )
 
 func TestMiniAppAuthAndUserInfo(t *testing.T) {
@@ -21,7 +24,7 @@ func TestMiniAppAuthAndUserInfo(t *testing.T) {
 		"client_credentials",
 		"https://app.example/webhook",
 		"https://app.example/callback",
-		WithClient(srv.Client()),
+		WithClient(newTestRestyClient(srv)),
 		WithSyncAuth(),
 	)
 
@@ -60,7 +63,7 @@ func TestMiniAppServerDownReturnsError(t *testing.T) {
 		"client_credentials",
 		"https://app.example/webhook",
 		"https://app.example/callback",
-		WithClient(srv.Client()),
+		WithClient(newTestRestyClient(srv)),
 	)
 
 	_, err := client.CreateInvoice(MiniAppCreateInvoiceInput{
@@ -139,6 +142,9 @@ func newMiniAppMockServer(t *testing.T, clientAuthCalls *atomic.Int32, userAuthC
 
 		switch r.URL.Path {
 		case "/oauth/token":
+			if got := r.Header.Get("Content-Type"); !strings.HasPrefix(got, "application/x-www-form-urlencoded") {
+				t.Fatalf("unexpected auth content type: %s", got)
+			}
 			if err := r.ParseForm(); err != nil {
 				t.Fatalf("parse form: %v", err)
 			}
@@ -228,6 +234,10 @@ func newMiniAppMockServer(t *testing.T, clientAuthCalls *atomic.Int32, userAuthC
 			http.NotFound(w, r)
 		}
 	}))
+}
+
+func newTestRestyClient(srv *httptest.Server) *resty.Client {
+	return resty.New().SetTransport(srv.Client().Transport)
 }
 
 func requireAuth(t *testing.T, r *http.Request, expected string) {

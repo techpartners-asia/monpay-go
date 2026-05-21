@@ -1,10 +1,8 @@
 package monpay
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -69,31 +67,23 @@ var (
 )
 
 func (m *monpay) httpRequestMonpay(body interface{}, api utils.API, urlExt string) (response []byte, err error) {
-	requestBody, err := jsonBodyReader(body)
+	req := m.client.R().
+		SetHeader("Content-Type", utils.HttpContent).
+		SetHeader("Accept", utils.HttpContent).
+		SetBasicAuth(m.username, m.accoutnId).
+		SetResponseBodyUnlimitedReads(true)
+	if body != nil {
+		req.SetBody(body)
+	}
+
+	res, err := req.Execute(api.Method, m.endpoint+api.Url+urlExt)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(api.Method, m.endpoint+api.Url+urlExt, requestBody)
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(m.username, m.accoutnId)
-	req.Header.Add("Content-Type", utils.HttpContent)
-	req.Header.Add("Accept", utils.HttpContent)
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	response, err = io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		return response, newAPIError("Monpay response error", res.StatusCode, response)
+	response = res.Bytes()
+	if res.IsError() {
+		return response, newAPIError("Monpay response error", res.StatusCode(), response)
 	}
 	return response, nil
 }
@@ -144,29 +134,28 @@ func (d *deeplink) getAccessToken() (AccessToken, error) {
 
 func (d *deeplink) doTokenRequest(formBody url.Values) (AccessToken, error) {
 	var authToken AccessToken
-	req, err := http.NewRequest(http.MethodPost, d.endpoint+MonpayMiniAppAuthToken.Url, strings.NewReader(formBody.Encode()))
+	res, err := d.client.R().
+		SetHeader("Content-Type", utils.XForm).
+		SetHeader("Accept", utils.HttpContent).
+		SetFormDataFromValues(formBody).
+		SetResult(&authToken).
+		SetResponseBodyUnlimitedReads(true).
+		Post(d.endpoint + MonpayMiniAppAuthToken.Url)
 	if err != nil {
 		return authToken, err
 	}
 
-	req.Header.Add("Content-Type", utils.XForm)
-	req.Header.Add("Accept", utils.HttpContent)
-
-	res, err := d.client.Do(req)
-	if err != nil {
-		return authToken, err
+	resp := res.Bytes()
+	if res.IsError() {
+		return authToken, newAPIError("Monpay auth failed", res.StatusCode(), resp)
 	}
-	defer res.Body.Close()
-
-	resp, err := io.ReadAll(res.Body)
-	if err != nil {
-		return authToken, err
+	if len(resp) > 0 {
+		if err = json.Unmarshal(resp, &authToken); err != nil {
+			return authToken, err
+		}
 	}
-	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		return authToken, newAPIError("Monpay auth failed", res.StatusCode, resp)
-	}
-	if err = json.Unmarshal(resp, &authToken); err != nil {
-		return authToken, err
+	if strings.TrimSpace(authToken.AccessToken) == "" {
+		return authToken, errors.New("monpay auth response missing access token")
 	}
 	authToken.obtainedAt = time.Now()
 	return authToken, nil
@@ -182,31 +171,26 @@ func (d *deeplink) httpRequestDeeplink(body interface{}, result interface{}, api
 		token = auth.AccessToken
 	}
 
-	requestBody, err := jsonBodyReader(body)
+	req := d.client.R().
+		SetHeader("Content-Type", utils.HttpContent).
+		SetHeader("Accept", utils.HttpContent).
+		SetAuthToken(restyAuthToken(token)).
+		SetResponseBodyUnlimitedReads(true)
+	if result != nil {
+		req.SetResult(result)
+	}
+	if body != nil {
+		req.SetBody(body)
+	}
+
+	res, err := req.Execute(api.Method, d.endpoint+api.Url+ext)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest(api.Method, d.endpoint+api.Url+ext, requestBody)
-	if err != nil {
-		return err
-	}
-	req.Header.Add("Content-Type", utils.HttpContent)
-	req.Header.Add("Accept", utils.HttpContent)
-	req.Header.Add("Authorization", bearerToken(token))
-
-	res, err := d.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-
-	response, err := io.ReadAll(res.Body)
-	if err != nil {
-		return err
-	}
-	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-		return newAPIError("Monpay response error", res.StatusCode, response)
+	response := res.Bytes()
+	if res.IsError() {
+		return newAPIError("Monpay response error", res.StatusCode(), response)
 	}
 	if result == nil || len(response) == 0 {
 		return nil
@@ -217,18 +201,6 @@ func (d *deeplink) httpRequestDeeplink(body interface{}, result interface{}, api
 	return monpayBusinessError(result, response)
 }
 
-func jsonBodyReader(body interface{}) (*bytes.Reader, error) {
-	if body == nil {
-		return bytes.NewReader(nil), nil
-	}
-
-	requestByte, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	return bytes.NewReader(requestByte), nil
-}
-
 func defaultGrantType(grantType string) string {
 	if strings.TrimSpace(grantType) == "" {
 		return "client_credentials"
@@ -236,12 +208,12 @@ func defaultGrantType(grantType string) string {
 	return grantType
 }
 
-func bearerToken(token string) string {
+func restyAuthToken(token string) string {
 	token = strings.TrimSpace(token)
 	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
-		return token
+		return strings.TrimSpace(token[len("bearer "):])
 	}
-	return "Bearer " + token
+	return token
 }
 
 func newAPIError(message string, statusCode int, body []byte) error {

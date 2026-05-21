@@ -18,7 +18,7 @@ func TestMiniAppInvoiceLifecycle(t *testing.T) {
 		"client_credentials",
 		"https://app.example/webhook",
 		"https://app.example/callback",
-		WithClient(srv.Client()),
+		WithClient(newTestRestyClient(srv)),
 		WithSyncAuth(),
 	)
 
