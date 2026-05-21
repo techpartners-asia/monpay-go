@@ -12,51 +12,63 @@ import (
 )
 
 var (
+	// MonpayGenerateQr [QR төлбөр үүсгэх]
+	// See: POST {endpoint}/rest/branch/qrpurchase/generate
 	MonpayGenerateQr = utils.API{
 		Url:    "/rest/branch/qrpurchase/generate",
 		Method: http.MethodPost,
 	}
+	// MonpayCheckQr [QR төлбөр шалгах]
+	// See: GET {endpoint}/rest/branch/qrpurchase/check?uuid={uuid}
 	MonpayCheckQr = utils.API{
 		Url:    "/rest/branch/qrpurchase/check?uuid=",
 		Method: http.MethodGet,
 	}
 	// MonpayPushNotification [Хэрэглэгч рүү push notification илгээх]
+	// See: GET {endpoint}/rest/admin/notification/push
 	MonpayPushNotification = utils.API{
 		Url:    "/rest/admin/notification/push",
 		Method: http.MethodGet,
 	}
 
 	// MonpayMiniAppAuthToken [Mini App access token авах]
+	// See: POST {endpoint}/oauth/token
 	MonpayMiniAppAuthToken = utils.API{
 		Url:    "/oauth/token",
 		Method: http.MethodPost,
 	}
 	// MonpayMiniAppUserInfo [Mini App хэрэглэгчийн мэдээлэл авах]
+	// See: GET {endpoint}/api/oauth/userinfo
 	MonpayMiniAppUserInfo = utils.API{
 		Url:    "/api/oauth/userinfo",
 		Method: http.MethodGet,
 	}
 	// MonpayMiniAppInvoiceCreate [Mini App нэхэмжлэх үүсгэх]
+	// See: POST {endpoint}/api/oauth/invoice
 	MonpayMiniAppInvoiceCreate = utils.API{
 		Url:    "/api/oauth/invoice",
 		Method: http.MethodPost,
 	}
 	// MonpayMiniAppInvoiceCheck [Mini App нэхэмжлэх шалгах]
+	// See: GET {endpoint}/api/oauth/invoice/{invoiceId}
 	MonpayMiniAppInvoiceCheck = utils.API{
 		Url:    "/api/oauth/invoice/",
 		Method: http.MethodGet,
 	}
 	// MonpayMiniAppInvoiceCancel [Mini App нэхэмжлэх цуцлах]
+	// See: GET {endpoint}/api/oauth/invoice/cancel?invoiceId={invoiceId}
 	MonpayMiniAppInvoiceCancel = utils.API{
 		Url:    "/api/oauth/invoice/cancel",
 		Method: http.MethodGet,
 	}
 	// MonpayMiniAppRefund [Mini App transaction refund хийх]
+	// See: POST {endpoint}/api/oauth/refund
 	MonpayMiniAppRefund = utils.API{
 		Url:    "/api/oauth/refund",
 		Method: http.MethodPost,
 	}
 	// MonpayMiniAppInvoiceRefund [Deprecated: use MonpayMiniAppRefund]
+	// See: GET {endpoint}/api/oauth/invoice/refund?invoiceId={invoiceId}
 	MonpayMiniAppInvoiceRefund = utils.API{
 		Url:    "/api/oauth/invoice/refund",
 		Method: http.MethodGet,

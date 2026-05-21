@@ -29,9 +29,18 @@ type monpay struct {
 }
 
 type Monpay interface {
+	// GenerateQr [QR төлбөр үүсгэх]
+	// See: POST https://z-wallet.monpay.mn/rest/branch/qrpurchase/generate
 	GenerateQr(input MonpayQrInput) (MonpayQrResponse, error)
+
+	// CheckQr [QR төлбөр шалгах]
+	// See: GET https://z-wallet.monpay.mn/rest/branch/qrpurchase/check?uuid={uuid}
 	CheckQr(uuid string) (MonpayCheckResponse, error)
+
+	// SendPushNotification [Хэрэглэгч рүү push notification илгээх]
+	// See: GET https://z-wallet.monpay.mn/rest/admin/notification/push
 	SendPushNotification(input MonpayPushNotificationInput) (MonpayPushNotificationResponse, error)
+
 	CallbackParser(url *url.URL) MonpayCallback
 }
 
@@ -45,6 +54,8 @@ func New(endpoint, username, accountId, callback string) Monpay {
 	}
 }
 
+// GenerateQr [QR төлбөр үүсгэх]
+// See: POST https://z-wallet.monpay.mn/rest/branch/qrpurchase/generate
 func (m *monpay) GenerateQr(input MonpayQrInput) (response MonpayQrResponse, err error) {
 	invoice := MonpayQrRequest{
 		Amount:       input.Amount,
@@ -73,6 +84,8 @@ func (m *monpay) GenerateQr(input MonpayQrInput) (response MonpayQrResponse, err
 	return
 }
 
+// CheckQr [QR төлбөр шалгах]
+// See: GET https://z-wallet.monpay.mn/rest/branch/qrpurchase/check?uuid={uuid}
 func (m *monpay) CheckQr(uuid string) (response MonpayCheckResponse, err error) {
 	res, err := m.httpRequestMonpay(nil, MonpayCheckQr, uuid)
 	if err != nil {
@@ -99,6 +112,7 @@ func (m *monpay) CheckQr(uuid string) (response MonpayCheckResponse, err error) 
 }
 
 // SendPushNotification [Хэрэглэгч рүү push notification илгээх]
+// See: GET https://z-wallet.monpay.mn/rest/admin/notification/push
 func (m *monpay) SendPushNotification(input MonpayPushNotificationInput) (MonpayPushNotificationResponse, error) {
 	query := url.Values{}
 	query.Set("userPhone", input.UserPhone)
@@ -165,27 +179,39 @@ type AccessToken struct {
 
 type Deeplink interface {
 	// Auth [Authorization code ашиглан хэрэглэгчийн access token авах]
+	// See: POST https://z-wallet.monpay.mn/v2/oauth/token
 	Auth(input MiniAppAuthInput) (AccessToken, error)
 
 	// UserInfo [OAuth-оор нэвтэрсэн хэрэглэгчийн мэдээлэл авах]
+	// See: GET https://z-wallet.monpay.mn/v2/api/oauth/userinfo
 	UserInfo(accessToken string) (response MiniAppUserInfoResponse, err error)
 
 	// CreateInvoice [Mini App нэхэмжлэх үүсгэх]
+	// See: POST https://z-wallet.monpay.mn/v2/api/oauth/invoice
 	CreateInvoice(input MiniAppCreateInvoiceInput) (response MiniAppInvoiceResponse, err error)
 
 	// CancelInvoice [Mini App нэхэмжлэх цуцлах]
+	// See: GET https://z-wallet.monpay.mn/v2/api/oauth/invoice/cancel?invoiceId={invoiceId}
 	CancelInvoice(invoiceID int) (response MiniAppInvoiceResponse, err error)
 
 	// Refund [Mini App нэхэмжлэх буцаах]
+	// See: GET https://z-wallet.monpay.mn/v2/api/oauth/invoice/refund?invoiceId={invoiceId}
 	//
 	// Deprecated: use RefundTransaction.
 	Refund(invoiceID int) (response MiniAppInvoiceResponse, err error)
 
 	// RefundTransaction [Mini App-аар хийгдсэн transaction refund хийх]
+	// See: POST https://z-wallet.monpay.mn/v2/api/oauth/refund
 	RefundTransaction(input MiniAppRefundInput) (response MiniAppRefundResponse, err error)
 
+	// CreateDeeplink [Mini App deeplink нэхэмжлэх үүсгэх]
+	// See: POST https://z-wallet.monpay.mn/v2/api/oauth/invoice
 	CreateDeeplink(amount float64, invoiceType InvoiceType, branchUsername, desc, invoiceId string) (response DeeplinkCreateResponse, err error)
+
+	// CheckInvoice [Mini App нэхэмжлэх шалгах]
+	// See: GET https://z-wallet.monpay.mn/v2/api/oauth/invoice/{invoiceId}
 	CheckInvoice(invoiceID int) (response MiniAppInvoiceResponse, err error)
+
 	CallbackParser(url *url.URL) (response DeeplinkCallback)
 }
 
@@ -252,6 +278,7 @@ func NewDeeplink(endpoint, id, secret, grantType, webhookUrl, redirectUrl string
 }
 
 // Auth [Authorization code ашиглан хэрэглэгчийн access token авах]
+// See: POST https://z-wallet.monpay.mn/v2/oauth/token
 func (d *deeplink) Auth(input MiniAppAuthInput) (AccessToken, error) {
 	grantType := strings.TrimSpace(input.GrantType)
 	if grantType == "" {
@@ -286,6 +313,7 @@ func (d *deeplink) Auth(input MiniAppAuthInput) (AccessToken, error) {
 }
 
 // UserInfo [OAuth-оор нэвтэрсэн хэрэглэгчийн мэдээлэл авах]
+// See: GET https://z-wallet.monpay.mn/v2/api/oauth/userinfo
 func (d *deeplink) UserInfo(accessToken string) (response MiniAppUserInfoResponse, err error) {
 	token := strings.TrimSpace(accessToken)
 	if token == "" {
@@ -306,6 +334,8 @@ func (d *deeplink) UserInfo(accessToken string) (response MiniAppUserInfoRespons
 	return response, nil
 }
 
+// CreateDeeplink [Mini App deeplink нэхэмжлэх үүсгэх]
+// See: POST https://z-wallet.monpay.mn/v2/api/oauth/invoice
 func (d *deeplink) CreateDeeplink(amount float64, invoiceType InvoiceType, branchUsername, desc, invoiceId string) (response DeeplinkCreateResponse, err error) {
 	return d.CreateInvoice(MiniAppCreateInvoiceInput{
 		RedirectUri:      d.redirectUrl + "/" + invoiceId,
@@ -318,6 +348,7 @@ func (d *deeplink) CreateDeeplink(amount float64, invoiceType InvoiceType, branc
 }
 
 // CreateInvoice [Mini App нэхэмжлэх үүсгэх]
+// See: POST https://z-wallet.monpay.mn/v2/api/oauth/invoice
 func (d *deeplink) CreateInvoice(input MiniAppCreateInvoiceInput) (response MiniAppInvoiceResponse, err error) {
 	body := MiniAppCreateInvoiceRequest{
 		RedirectUri:      firstNonEmpty(input.RedirectUri, d.redirectUrl),
@@ -335,6 +366,7 @@ func (d *deeplink) CreateInvoice(input MiniAppCreateInvoiceInput) (response Mini
 }
 
 // CheckInvoice [Mini App нэхэмжлэх шалгах]
+// See: GET https://z-wallet.monpay.mn/v2/api/oauth/invoice/{invoiceId}
 func (d *deeplink) CheckInvoice(invoiceID int) (response MiniAppInvoiceResponse, err error) {
 	if invoiceID <= 0 {
 		return MiniAppInvoiceResponse{}, errors.New("monpay invoice id is required")
@@ -347,11 +379,13 @@ func (d *deeplink) CheckInvoice(invoiceID int) (response MiniAppInvoiceResponse,
 }
 
 // CancelInvoice [Mini App нэхэмжлэх цуцлах]
+// See: GET https://z-wallet.monpay.mn/v2/api/oauth/invoice/cancel?invoiceId={invoiceId}
 func (d *deeplink) CancelInvoice(invoiceID int) (response MiniAppInvoiceResponse, err error) {
 	return d.invoiceAction(invoiceID, MonpayMiniAppInvoiceCancel)
 }
 
 // Refund [Mini App нэхэмжлэх буцаах]
+// See: GET https://z-wallet.monpay.mn/v2/api/oauth/invoice/refund?invoiceId={invoiceId}
 //
 // Deprecated: use RefundTransaction.
 func (d *deeplink) Refund(invoiceID int) (response MiniAppInvoiceResponse, err error) {
@@ -359,6 +393,7 @@ func (d *deeplink) Refund(invoiceID int) (response MiniAppInvoiceResponse, err e
 }
 
 // RefundTransaction [Mini App-аар хийгдсэн transaction refund хийх]
+// See: POST https://z-wallet.monpay.mn/v2/api/oauth/refund
 func (d *deeplink) RefundTransaction(input MiniAppRefundInput) (response MiniAppRefundResponse, err error) {
 	if input.InvoiceID <= 0 && strings.TrimSpace(input.TxnNo) == "" {
 		return MiniAppRefundResponse{}, errors.New("monpay refund invoice id or transaction no is required")
