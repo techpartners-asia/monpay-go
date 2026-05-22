@@ -43,6 +43,10 @@ func TestMiniAppInvoiceLifecycle(t *testing.T) {
 		t.Fatalf("unexpected checked status: %s", checked.Result.Status)
 	}
 
+	if err := client.RedirectInvoice(42); err != nil {
+		t.Fatalf("redirect invoice failed: %v", err)
+	}
+
 	cancelled, err := client.CancelInvoice(42)
 	if err != nil {
 		t.Fatalf("cancel invoice failed: %v", err)
@@ -104,6 +108,23 @@ func TestMiniAppRefundTransactionRequiresInvoiceIDOrTxnNo(t *testing.T) {
 	)
 
 	_, err := client.RefundTransaction(MiniAppRefundInput{Description: "missing target"})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+}
+
+func TestMiniAppRedirectInvoiceRequiresInvoiceID(t *testing.T) {
+	client := NewDeeplink(
+		"https://example.com",
+		"client-id",
+		"client-secret",
+		"client_credentials",
+		"https://app.example/webhook",
+		"https://app.example/callback",
+		WithAccessToken(AccessToken{AccessToken: "client-token"}),
+	)
+
+	err := client.RedirectInvoice(0)
 	if err == nil {
 		t.Fatal("expected validation error, got nil")
 	}

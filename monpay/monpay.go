@@ -208,6 +208,10 @@ type Deeplink interface {
 	// See: POST https://z-wallet.monpay.mn/v2/api/oauth/invoice
 	CreateDeeplink(amount float64, invoiceType InvoiceType, branchUsername, desc, invoiceId string) (response DeeplinkCreateResponse, err error)
 
+	// RedirectInvoice [Monpay app дээр invoice төлбөрийн хэрэгсэл харуулах]
+	// See: GET https://z-wallet.monpay.mn/v2/invoice/{invoiceId}
+	RedirectInvoice(invoiceID int) error
+
 	// CheckInvoice [Mini App нэхэмжлэх шалгах]
 	// See: GET https://z-wallet.monpay.mn/v2/api/oauth/invoice/{invoiceId}
 	CheckInvoice(invoiceID int) (response MiniAppInvoiceResponse, err error)
@@ -345,6 +349,15 @@ func (d *deeplink) CreateDeeplink(amount float64, invoiceType InvoiceType, branc
 		InvoiceType:      invoiceType,
 		Description:      desc,
 	})
+}
+
+// RedirectInvoice [Monpay app дээр invoice төлбөрийн хэрэгсэл харуулах]
+// See: GET https://z-wallet.monpay.mn/v2/invoice/{invoiceId}
+func (d *deeplink) RedirectInvoice(invoiceID int) error {
+	if invoiceID <= 0 {
+		return errors.New("monpay invoice id is required")
+	}
+	return d.httpRequestDeeplink(nil, nil, MonpayRedirect, fmt.Sprintf("%d", invoiceID), "")
 }
 
 // CreateInvoice [Mini App нэхэмжлэх үүсгэх]

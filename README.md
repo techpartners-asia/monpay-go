@@ -42,6 +42,10 @@ if err != nil {
 }
 _ = checked
 
+if err := client.RedirectInvoice(invoice.Result.ID); err != nil {
+	return err
+}
+
 refund, err := client.RefundTransaction(monpay.MiniAppRefundInput{
 	InvoiceID:   invoice.Result.ID,
 	Description: "Customer requested refund",
@@ -58,6 +62,7 @@ Mini App methods:
 - `UserInfo`
 - `CreateInvoice`
 - `CheckInvoice`
+- `RedirectInvoice`
 - `CancelInvoice`
 - `RefundTransaction`
 

@@ -208,6 +208,9 @@ func newMiniAppMockServer(t *testing.T, clientAuthCalls *atomic.Int32, userAuthC
 		case "/api/oauth/invoice/42":
 			requireAuth(t, r, "Bearer client-token")
 			writeInvoiceResponse(w, 42, "PAID")
+		case "/invoice/42":
+			requireAuth(t, r, "Bearer client-token")
+			w.WriteHeader(http.StatusNoContent)
 		case "/api/oauth/invoice/cancel":
 			requireAuth(t, r, "Bearer client-token")
 			if r.URL.Query().Get("invoiceId") != "42" {

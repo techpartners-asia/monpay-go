@@ -73,6 +73,12 @@ var (
 		Url:    "/api/oauth/invoice/refund",
 		Method: http.MethodGet,
 	}
+	// MonpayRedirect [Monpay app дээр invoice төлбөрийн хэрэгсэл харуулах]
+	// See: GET {endpoint}/invoice/{invoiceId}
+	MonpayRedirect = utils.API{
+		Url:    "/invoice/",
+		Method: http.MethodGet,
+	}
 
 	MonpayDeeplinkCreate = MonpayMiniAppInvoiceCreate
 	MonpayDeeplinkCheck  = MonpayMiniAppInvoiceCheck
