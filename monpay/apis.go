@@ -73,6 +73,25 @@ var (
 		Url:    "/api/oauth/invoice/refund",
 		Method: http.MethodGet,
 	}
+
+	// MonpayDebtInvoiceCreate [Debt/penalty нэхэмжлэх үүсгэх]
+	// See: POST {endpoint}/api/monpay/invoice
+	MonpayDebtInvoiceCreate = utils.API{
+		Url:    "/api/monpay/invoice",
+		Method: http.MethodPost,
+	}
+	// MonpayDebtInvoiceGet [Debt нэхэмжлэхийн мэдээлэл авах]
+	// See: GET {endpoint}/api/monpay/invoice/{invoiceId}
+	MonpayDebtInvoiceGet = utils.API{
+		Url:    "/api/monpay/invoice/",
+		Method: http.MethodGet,
+	}
+	// MonpayDebtInvoiceCancel [Debt нэхэмжлэх цуцлах]
+	// See: PUT {endpoint}/api/monpay/invoice/{invoiceId}
+	MonpayDebtInvoiceCancel = utils.API{
+		Url:    "/api/monpay/invoice/",
+		Method: http.MethodPut,
+	}
 	// MonpayRedirect [Monpay app дээр invoice төлбөрийн хэрэгсэл харуулах]
 	// See: GET {endpoint}/invoice/{invoiceId}
 	MonpayRedirect = utils.API{

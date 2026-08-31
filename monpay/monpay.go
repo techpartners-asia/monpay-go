@@ -216,6 +216,18 @@ type Deeplink interface {
 	// See: GET https://z-wallet.monpay.mn/v2/api/oauth/invoice/{invoiceId}
 	CheckInvoice(invoiceID int) (response MiniAppInvoiceResponse, err error)
 
+	// CreateDebtInvoice [Debt/penalty нэхэмжлэх үүсгэх]
+	// See: POST https://z-wallet.monpay.mn/v2/api/monpay/invoice
+	CreateDebtInvoice(input CreateDebtInvoiceInput) (response CreateDebtInvoiceResponse, err error)
+
+	// GetDebtInvoice [Debt нэхэмжлэхийн мэдээлэл авах]
+	// See: GET https://z-wallet.monpay.mn/v2/api/monpay/invoice/{invoiceId}
+	GetDebtInvoice(invoiceID int) (response DebtInvoiceResponse, err error)
+
+	// CancelDebtInvoice [Debt нэхэмжлэх цуцлах]
+	// See: PUT https://z-wallet.monpay.mn/v2/api/monpay/invoice/{invoiceId}
+	CancelDebtInvoice(invoiceID int, input CancelDebtInvoiceInput) (response DebtInvoiceResponse, err error)
+
 	CallbackParser(url *url.URL) (response DeeplinkCallback)
 }
 
@@ -408,18 +420,81 @@ func (d *deeplink) Refund(invoiceID int) (response MiniAppInvoiceResponse, err e
 // RefundTransaction [Mini App-аар хийгдсэн transaction refund хийх]
 // See: POST https://z-wallet.monpay.mn/v2/api/oauth/refund
 func (d *deeplink) RefundTransaction(input MiniAppRefundInput) (response MiniAppRefundResponse, err error) {
-	if input.InvoiceID <= 0 && strings.TrimSpace(input.TxnNo) == "" {
-		return MiniAppRefundResponse{}, errors.New("monpay refund invoice id or transaction no is required")
+	if input.InvoiceID <= 0 {
+		return MiniAppRefundResponse{}, errors.New("monpay refund invoice id is required")
 	}
 
 	body := MiniAppRefundRequest{
 		InvoiceID:   input.InvoiceID,
-		TxnNo:       input.TxnNo,
 		Description: input.Description,
 	}
 	err = d.httpRequestDeeplink(body, &response, MonpayMiniAppRefund, "", input.AccessToken)
 	if err != nil {
 		return MiniAppRefundResponse{}, err
+	}
+	return response, nil
+}
+
+// CreateDebtInvoice [Debt/penalty нэхэмжлэх үүсгэх]
+// See: POST https://z-wallet.monpay.mn/v2/api/monpay/invoice
+func (d *deeplink) CreateDebtInvoice(input CreateDebtInvoiceInput) (response CreateDebtInvoiceResponse, err error) {
+	if len(input.Items) == 0 {
+		return CreateDebtInvoiceResponse{}, errors.New("monpay debt invoice item is required")
+	}
+
+	category := input.Category
+	if strings.TrimSpace(string(category)) == "" {
+		category = InvoiceCategoryInvoice
+	}
+
+	items := make([]debtInvoiceItemRequest, 0, len(input.Items))
+	for _, item := range input.Items {
+		items = append(items, debtInvoiceItemRequest{
+			ItemCode:    item.ItemCode,
+			Description: item.Description,
+			UnitPrice:   item.UnitPrice,
+		})
+	}
+
+	body := CreateDebtInvoiceRequest{
+		MiniAppInvoiceID:  input.MiniAppInvoiceID,
+		ExternalInvoiceID: input.ExternalInvoiceID,
+		InvoiceItem:       items,
+		InvoiceCategory:   category,
+	}
+	err = d.httpRequestDeeplink(body, &response, MonpayDebtInvoiceCreate, "", input.AccessToken)
+	if err != nil {
+		return CreateDebtInvoiceResponse{}, err
+	}
+	return response, nil
+}
+
+// GetDebtInvoice [Debt нэхэмжлэхийн мэдээлэл авах]
+// See: GET https://z-wallet.monpay.mn/v2/api/monpay/invoice/{invoiceId}
+func (d *deeplink) GetDebtInvoice(invoiceID int) (response DebtInvoiceResponse, err error) {
+	if invoiceID <= 0 {
+		return DebtInvoiceResponse{}, errors.New("monpay invoice id is required")
+	}
+	err = d.httpRequestDeeplink(nil, &response, MonpayDebtInvoiceGet, strconv.Itoa(invoiceID), "")
+	if err != nil {
+		return DebtInvoiceResponse{}, err
+	}
+	return response, nil
+}
+
+// CancelDebtInvoice [Debt нэхэмжлэх цуцлах]
+// See: PUT https://z-wallet.monpay.mn/v2/api/monpay/invoice/{invoiceId}
+func (d *deeplink) CancelDebtInvoice(invoiceID int, input CancelDebtInvoiceInput) (response DebtInvoiceResponse, err error) {
+	if invoiceID <= 0 {
+		return DebtInvoiceResponse{}, errors.New("monpay invoice id is required")
+	}
+	body := CancelDebtInvoiceRequest{
+		ReasonCode: input.ReasonCode,
+		ReasonText: input.ReasonText,
+	}
+	err = d.httpRequestDeeplink(body, &response, MonpayDebtInvoiceCancel, strconv.Itoa(invoiceID), "")
+	if err != nil {
+		return DebtInvoiceResponse{}, err
 	}
 	return response, nil
 }

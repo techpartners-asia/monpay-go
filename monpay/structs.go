@@ -15,6 +15,14 @@ const (
 	B2B InvoiceType = "B2B" // person to MF & MF to organization
 )
 
+// InvoiceCategory is the category of a debt invoice (POST /api/monpay/invoice).
+type InvoiceCategory string
+
+const (
+	InvoiceCategoryPenalty InvoiceCategory = "PENALTY"
+	InvoiceCategoryInvoice InvoiceCategory = "INVOICE"
+)
+
 type Bank string
 
 const (
@@ -240,15 +248,13 @@ type (
 
 	MiniAppRefundInput struct {
 		InvoiceID   int
-		TxnNo       string
 		Description string
 		AccessToken string
 	}
 
 	MiniAppRefundRequest struct {
-		InvoiceID   int    `json:"invoiceId,omitempty"` // Refund хийх invoice ID
-		TxnNo       string `json:"txnNo,omitempty"`     // Refund хийх transaction дугаар
-		Description string `json:"description"`         // Refund тайлбар
+		InvoiceID   int    `json:"invoiceId"`   // Refund хийх invoice ID (miniapp invoiceID)
+		Description string `json:"description"` // Refund тайлбар
 	}
 
 	MiniAppRefundResponse struct {
@@ -279,6 +285,116 @@ type (
 	DeeplinkCreateResult   = MiniAppInvoiceResult
 	DeeplinkCheckResponse  = MiniAppInvoiceResponse
 	DeeplinkCheckResult    = MiniAppInvoiceResult
+
+	// ---- Debt invoice (POST/GET/PUT {endpoint}/api/monpay/invoice) ----
+
+	// DebtInvoiceItemInput is a single line item of a debt invoice to create.
+	DebtInvoiceItemInput struct {
+		ItemCode    string  // Барааны код (ж: powerbank-ийн unique id)
+		Description string  // Тайлбар
+		UnitPrice   float64 // Нэгжийн үнэ
+	}
+
+	// CreateDebtInvoiceInput is the input for CreateDebtInvoice.
+	CreateDebtInvoiceInput struct {
+		MiniAppInvoiceID  int                    // Miniapp invoice-ийн давтагдашгүй id
+		ExternalInvoiceID string                 // Tino талаас үүсгэсэн гадаад id
+		Items             []DebtInvoiceItemInput // Нэхэмжлэхийн зүйлс
+		Category          InvoiceCategory        // PENALTY | INVOICE
+		AccessToken       string                 // Заавал биш: тодорхой token ашиглах
+	}
+
+	debtInvoiceItemRequest struct {
+		ItemCode    string  `json:"itemCode"`
+		Description string  `json:"description"`
+		UnitPrice   float64 `json:"unitPrice"`
+	}
+
+	// CreateDebtInvoiceRequest is the wire body for POST /api/monpay/invoice.
+	CreateDebtInvoiceRequest struct {
+		MiniAppInvoiceID  int                      `json:"miniappInvoiceId"`
+		ExternalInvoiceID string                   `json:"externalInvoiceId"`
+		InvoiceItem       []debtInvoiceItemRequest `json:"invoiceItem"`
+		InvoiceCategory   InvoiceCategory          `json:"invoiceCategory"`
+	}
+
+	// CancelDebtInvoiceInput is the input for CancelDebtInvoice.
+	CancelDebtInvoiceInput struct {
+		ReasonCode string // Цуцлах шалтгааны код (ж: "Cancel Request")
+		ReasonText string // Цуцлах шалтгааны тайлбар
+	}
+
+	// CancelDebtInvoiceRequest is the wire body for PUT /api/monpay/invoice/{id}.
+	CancelDebtInvoiceRequest struct {
+		ReasonCode string `json:"reasonCode"`
+		ReasonText string `json:"reasonText"`
+	}
+
+	// DebtInvoice is a debt invoice as returned by create/get/cancel.
+	DebtInvoice struct {
+		ID                int                     `json:"id"`
+		InvoiceNumber     string                  `json:"invoiceNumber"`
+		ExternalInvoiceID string                  `json:"externalInvoiceId"`
+		SourceInvoiceID   string                  `json:"sourceInvoiceId"` // Miniapp invoice ID (create хариунд)
+		IssuerType        string                  `json:"issuerType"`
+		IssuerID          string                  `json:"issuerId"`
+		Category          string                  `json:"category"`
+		Type              string                  `json:"type"` // get/cancel хариунд
+		Status            string                  `json:"status"`
+		TotalAmount       float64                 `json:"totalAmount"`
+		CollectedAmount   float64                 `json:"collectedAmount"`
+		Items             []DebtInvoiceItem       `json:"items"`
+		Obligations       []DebtInvoiceObligation `json:"obligations"`
+	}
+
+	DebtInvoiceItem struct {
+		ID          int     `json:"id"`
+		ItemCode    string  `json:"itemCode"`
+		Description string  `json:"description"`
+		Quantity    float64 `json:"quantity"`
+		UnitPrice   float64 `json:"unitPrice"`
+		LineAmount  float64 `json:"lineAmount"`
+	}
+
+	DebtInvoiceObligation struct {
+		ID                  int     `json:"id"`
+		RecipientType       string  `json:"recipientType"`
+		RecipientIdentifier string  `json:"recipientIdentifier"`
+		Amount              float64 `json:"amount"`
+		PaidAmount          float64 `json:"paidAmount"`
+		Status              string  `json:"status"`
+	}
+
+	// CreateDebtInvoiceResponse is the batch response for POST /api/monpay/invoice.
+	CreateDebtInvoiceResponse struct {
+		Code    string                  `json:"code"`
+		IntCode int                     `json:"intCode"`
+		Info    string                  `json:"info"`
+		Result  CreateDebtInvoiceResult `json:"result"`
+	}
+
+	CreateDebtInvoiceResult struct {
+		Reference      string                        `json:"reference"`
+		RequestedCount int                           `json:"requestedCount"`
+		SuccessCount   int                           `json:"successCount"`
+		FailureCount   int                           `json:"failureCount"`
+		Results        []CreateDebtInvoiceResultItem `json:"results"`
+	}
+
+	CreateDebtInvoiceResultItem struct {
+		RecipientType       string      `json:"recipientType"`
+		RecipientIdentifier string      `json:"recipientIdentifier"`
+		Result              string      `json:"result"`
+		Invoice             DebtInvoice `json:"invoice"`
+	}
+
+	// DebtInvoiceResponse is the single-invoice response for GET/PUT /api/monpay/invoice/{id}.
+	DebtInvoiceResponse struct {
+		Code    string      `json:"code"`
+		IntCode int         `json:"intCode"`
+		Info    string      `json:"info"`
+		Result  DebtInvoice `json:"result"`
+	}
 
 	DeeplinkCallback struct {
 		Amount    float64 `schema:"amount"`    // Нэхэмжилсэн дүн
