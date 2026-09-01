@@ -215,7 +215,7 @@ type (
 		RedirectUri      string      `json:"redirectUri"`                // Webhook буюу гүйлгээний үр дүн илгээгдэх буцах хаяг
 		Amount           float64     `json:"amount"`                     // Дүн
 		ClientServiceUrl string      `json:"clientServiceUrl,omitempty"` // Амжилттай гүйлгээний дараа backend-ээс дуудах webhook url.
-		Receiver         string      `json:"receiver"`                   // Нэхэмжлэхийн төрлөөс хамаарч утга нь өөр өөр байна.
+		BranchName       string      `json:"branch_name"`                // Нэхэмжлэхийн төрлөөс хамаарч утга нь өөр өөр байна.
 		InvoiceType      InvoiceType `json:"invoiceType"`                // P2B, P2P, B2B
 		Description      string      `json:"description"`                // Тайлбар
 	}

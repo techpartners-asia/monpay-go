@@ -379,7 +379,7 @@ func (d *deeplink) CreateInvoice(input MiniAppCreateInvoiceInput) (response Mini
 		RedirectUri:      firstNonEmpty(input.RedirectUri, d.redirectUrl),
 		ClientServiceUrl: firstNonEmpty(input.ClientServiceUrl, d.webhookUrl),
 		Amount:           input.Amount,
-		Receiver:         input.Receiver,
+		BranchName:       input.Receiver,
 		InvoiceType:      input.InvoiceType,
 		Description:      input.Description,
 	}
