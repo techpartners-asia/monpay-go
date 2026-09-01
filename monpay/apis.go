@@ -143,10 +143,15 @@ func (d *deeplink) getAccessToken() (AccessToken, error) {
 		}
 		d.mu.RUnlock()
 
+		// The app/merchant token is always a client-credentials grant. It must NOT
+		// be driven by the configurable grantType (that value belongs to the user
+		// authorization_code flow in Auth); sending grant_type=authorization_code
+		// here has no code and fails with {"error":"invalid_request",
+		// "error_description":"code required"}.
 		formBody := url.Values{}
 		formBody.Add("client_id", d.clientId)
 		formBody.Add("client_secret", d.clientSecret)
-		formBody.Add("grant_type", defaultGrantType(d.grantType))
+		formBody.Add("grant_type", clientCredentialsGrant(d.grantType))
 
 		authToken, authErr := d.doTokenRequest(formBody)
 		if authErr != nil {
@@ -238,8 +243,12 @@ func (d *deeplink) httpRequestDeeplink(body interface{}, result interface{}, api
 	return monpayBusinessError(result, response)
 }
 
-func defaultGrantType(grantType string) string {
-	if strings.TrimSpace(grantType) == "" {
+// clientCredentialsGrant resolves the grant_type for the app/merchant token
+// fetch. It defaults to client_credentials and never allows authorization_code
+// (which needs a user code and cannot mint the client token).
+func clientCredentialsGrant(grantType string) string {
+	grantType = strings.TrimSpace(grantType)
+	if grantType == "" || strings.EqualFold(grantType, "authorization_code") {
 		return "client_credentials"
 	}
 	return grantType
