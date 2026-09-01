@@ -77,17 +77,6 @@ func TestMiniAppInvoiceLifecycle(t *testing.T) {
 		t.Fatalf("unexpected refund phone: %s", refundTransaction.Result.Phone.String())
 	}
 
-	refundByTxnNo, err := client.RefundTransaction(MiniAppRefundInput{
-		TxnNo:       "TXN202605200001",
-		Description: "Duplicate payment refund",
-	})
-	if err != nil {
-		t.Fatalf("refund transaction by txn no failed: %v", err)
-	}
-	if refundByTxnNo.Result.TxnID != "TXN202605200001" {
-		t.Fatalf("unexpected original transaction id: %s", refundByTxnNo.Result.TxnID)
-	}
-
 	if clientAuthCalls.Load() != 1 {
 		t.Fatalf("expected cached client token to use one auth call, got %d", clientAuthCalls.Load())
 	}
@@ -96,7 +85,7 @@ func TestMiniAppInvoiceLifecycle(t *testing.T) {
 	}
 }
 
-func TestMiniAppRefundTransactionRequiresInvoiceIDOrTxnNo(t *testing.T) {
+func TestMiniAppRefundTransactionRequiresInvoiceID(t *testing.T) {
 	client := NewDeeplink(
 		"https://example.com",
 		"client-id",

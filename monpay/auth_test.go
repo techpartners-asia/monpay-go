@@ -229,7 +229,7 @@ func newMiniAppMockServer(t *testing.T, clientAuthCalls *atomic.Int32, userAuthC
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				t.Fatalf("decode refund request: %v", err)
 			}
-			if req.InvoiceID != 42 && req.TxnNo != "TXN202605200001" {
+			if req.InvoiceID != 42 {
 				t.Fatalf("unexpected refund request: %+v", req)
 			}
 			writeRefundResponse(w, req)
@@ -274,10 +274,7 @@ func writeInvoiceResponse(w http.ResponseWriter, id int, status string) {
 }
 
 func writeRefundResponse(w http.ResponseWriter, req MiniAppRefundRequest) {
-	txnID := req.TxnNo
-	if txnID == "" {
-		txnID = "TXN202605200001"
-	}
+	txnID := "TXN202605200001"
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"code":    "SUCCESS",
 		"info":    "success",
