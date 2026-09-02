@@ -525,18 +525,29 @@ func (d *deeplink) CallbackParser(url *url.URL) (response DeeplinkCallback) {
 	return
 }
 
+// defaultTokenTTL bounds how long a token with no server-provided expires_in is
+// cached. Monpay's client-credentials token carries neither expires_in nor an
+// exp claim, so without this the token would be cached for the whole process
+// lifetime and never refreshed — every request would keep sending the same
+// stale token once Monpay expires it server-side (recoverable only on restart
+// or via the 401 retry). A bounded TTL re-mints it proactively instead.
+const defaultTokenTTL = 30 * time.Minute
+
 func (d *deeplink) tokenValid(token *AccessToken) bool {
 	if token == nil || strings.TrimSpace(token.AccessToken) == "" {
 		return false
-	}
-	if token.ExpiresIn <= 0 {
-		return true
 	}
 	obtainedAt := token.obtainedAt
 	if obtainedAt.IsZero() {
 		return false
 	}
-	refreshAt := obtainedAt.Add(time.Duration(token.ExpiresIn) * time.Second).Add(-1 * time.Minute)
+	// Refresh a minute before the stated expiry; fall back to defaultTokenTTL
+	// when the server gives no expires_in.
+	lifetime := time.Duration(token.ExpiresIn) * time.Second
+	if token.ExpiresIn <= 0 {
+		lifetime = defaultTokenTTL
+	}
+	refreshAt := obtainedAt.Add(lifetime).Add(-1 * time.Minute)
 	return time.Now().Before(refreshAt)
 }
 
