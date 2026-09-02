@@ -204,43 +204,86 @@ func (d *deeplink) doTokenRequest(formBody url.Values) (AccessToken, error) {
 }
 
 func (d *deeplink) httpRequestDeeplink(body interface{}, result interface{}, api utils.API, ext string, accessToken string) error {
-	token := strings.TrimSpace(accessToken)
-	if token == "" {
-		auth, err := d.getAccessToken()
+	// A caller-supplied token is used as-is and never refreshed (it is not ours
+	// to re-mint). An empty token is auto-fetched from the client-credentials
+	// cache, and such a managed token is transparently refreshed once if the
+	// server rejects it as expired/invalid.
+	managed := strings.TrimSpace(accessToken) == ""
+
+	for attempt := 0; attempt < 2; attempt++ {
+		token := strings.TrimSpace(accessToken)
+		if token == "" {
+			auth, err := d.getAccessToken()
+			if err != nil {
+				return err
+			}
+			token = auth.AccessToken
+		}
+
+		req := d.client.R().
+			SetHeader("Content-Type", utils.HttpContent).
+			SetHeader("Accept", utils.HttpContent).
+			SetAuthToken(restyAuthToken(token)).
+			SetResponseBodyUnlimitedReads(true)
+		if result != nil {
+			req.SetResult(result)
+		}
+		if body != nil {
+			req.SetBody(body)
+		}
+
+		res, err := req.Execute(api.Method, d.endpoint+api.Url+ext)
 		if err != nil {
 			return err
 		}
-		token = auth.AccessToken
+
+		response := res.Bytes()
+
+		// Recover transparently from a stale/revoked managed token: the server
+		// answers 401 UNAUTHORIZED, so drop the cached token and retry once with a
+		// freshly minted one. A 401 INSUFFICIENT_ACCESS (a permission gap, not a
+		// bad token) is NOT retried — a new token for the same app fails the same
+		// way — so it surfaces immediately.
+		if managed && attempt == 0 && res.StatusCode() == http.StatusUnauthorized && isExpiredTokenResponse(response) {
+			d.invalidateAccessToken()
+			continue
+		}
+
+		if res.IsError() {
+			return newAPIError("Monpay response error", res.StatusCode(), response)
+		}
+		if result == nil || len(response) == 0 {
+			return nil
+		}
+		if err = json.Unmarshal(response, result); err != nil {
+			return err
+		}
+		return monpayBusinessError(result, response)
 	}
 
-	req := d.client.R().
-		SetHeader("Content-Type", utils.HttpContent).
-		SetHeader("Accept", utils.HttpContent).
-		SetAuthToken(restyAuthToken(token)).
-		SetResponseBodyUnlimitedReads(true)
-	if result != nil {
-		req.SetResult(result)
-	}
-	if body != nil {
-		req.SetBody(body)
-	}
+	return errors.New("monpay request failed after token refresh")
+}
 
-	res, err := req.Execute(api.Method, d.endpoint+api.Url+ext)
-	if err != nil {
-		return err
+// isExpiredTokenResponse reports whether a 401 body signals an invalid/expired
+// access token (UNAUTHORIZED / intCode 1) — which a token refresh can fix —
+// rather than a permission gap (INSUFFICIENT_ACCESS / intCode 6), which it can't.
+func isExpiredTokenResponse(body []byte) bool {
+	var e struct {
+		Code    string `json:"code"`
+		IntCode int    `json:"intCode"`
 	}
+	if err := json.Unmarshal(body, &e); err != nil {
+		return false
+	}
+	return strings.EqualFold(e.Code, "UNAUTHORIZED") || e.IntCode == 1
+}
 
-	response := res.Bytes()
-	if res.IsError() {
-		return newAPIError("Monpay response error", res.StatusCode(), response)
-	}
-	if result == nil || len(response) == 0 {
-		return nil
-	}
-	if err = json.Unmarshal(response, result); err != nil {
-		return err
-	}
-	return monpayBusinessError(result, response)
+// invalidateAccessToken clears the cached client-credentials token so the next
+// getAccessToken mints a fresh one.
+func (d *deeplink) invalidateAccessToken() {
+	d.mu.Lock()
+	d.accessToken = nil
+	d.mu.Unlock()
 }
 
 // clientCredentialsGrant resolves the grant_type for the app/merchant token
