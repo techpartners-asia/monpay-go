@@ -1,8 +1,10 @@
 package monpay
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -175,8 +177,16 @@ func (d *deeplink) getAccessToken() (AccessToken, error) {
 }
 
 func (d *deeplink) doTokenRequest(formBody url.Values) (AccessToken, error) {
+	return d.doTokenRequestCtx(context.Background(), formBody)
+}
+
+// doTokenRequestCtx is doTokenRequest with a caller-supplied context, so an
+// explicit FetchToken can be cancelled or time-boxed. The managed path has no
+// context to pass, which is why doTokenRequest still exists.
+func (d *deeplink) doTokenRequestCtx(ctx context.Context, formBody url.Values) (AccessToken, error) {
 	var authToken AccessToken
 	res, err := d.client.R().
+		SetContext(ctx).
 		SetHeader("Content-Type", utils.XForm).
 		SetHeader("Accept", utils.HttpContent).
 		SetFormDataFromValues(formBody).
@@ -205,13 +215,19 @@ func (d *deeplink) doTokenRequest(formBody url.Values) (AccessToken, error) {
 
 func (d *deeplink) httpRequestDeeplink(body interface{}, result interface{}, api utils.API, ext string, accessToken string) error {
 	// A caller-supplied token is used as-is and never refreshed (it is not ours
-	// to re-mint). An empty token is auto-fetched from the client-credentials
-	// cache, and such a managed token is transparently refreshed once if the
-	// server rejects it as expired/invalid.
-	managed := strings.TrimSpace(accessToken) == ""
+	// to re-mint). The same holds for an installed ExternalToken. Otherwise the
+	// token is auto-fetched from the client-credentials cache, and such a
+	// managed token is transparently refreshed once if the server rejects it as
+	// expired/invalid.
+	external := d.InstalledToken()
+	callerSupplied := strings.TrimSpace(accessToken) != ""
+	managed := !callerSupplied && external.IsZero()
 
 	for attempt := 0; attempt < 2; attempt++ {
 		token := strings.TrimSpace(accessToken)
+		if token == "" && !external.IsZero() {
+			token = strings.TrimSpace(external.AccessToken)
+		}
 		if token == "" {
 			auth, err := d.getAccessToken()
 			if err != nil {
@@ -247,6 +263,15 @@ func (d *deeplink) httpRequestDeeplink(body interface{}, result interface{}, api
 		if managed && attempt == 0 && res.StatusCode() == http.StatusUnauthorized && isExpiredTokenResponse(response) {
 			d.invalidateAccessToken()
 			continue
+		}
+
+		// An installed ExternalToken is the caller's, so a rejection is theirs
+		// to act on: report it as ErrUnauthorized instead of silently minting a
+		// replacement they would never see.
+		if !callerSupplied && !external.IsZero() &&
+			(res.StatusCode() == http.StatusUnauthorized || res.StatusCode() == http.StatusForbidden) {
+			return fmt.Errorf("%w: %w", ErrUnauthorized,
+				newAPIError("Monpay response error", res.StatusCode(), response))
 		}
 
 		if res.IsError() {

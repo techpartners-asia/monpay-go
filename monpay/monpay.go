@@ -1,6 +1,7 @@
 package monpay
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -166,6 +167,12 @@ type deeplink struct {
 	mu           sync.RWMutex
 	authGroup    singleflight.Group
 	client       *resty.Client
+
+	// externalToken, when non-zero, is a token the CALLER owns: the client
+	// sends it as-is and neither caches nor refreshes it, leaving accessToken
+	// and authGroup unused. Zero means managed mode, the default. See
+	// ExternalToken.
+	externalToken ExternalToken
 }
 
 type AccessToken struct {
@@ -178,6 +185,20 @@ type AccessToken struct {
 }
 
 type Deeplink interface {
+	// FetchToken [Merchant token-ийг гараар авах] — one request, no caching.
+	//
+	// Opt-in: the SDK manages its own token unless one is installed with
+	// UseExternalToken. See [ExternalToken].
+	FetchToken(ctx context.Context) (ExternalToken, error)
+
+	// UseExternalToken installs a caller-owned token; the zero value clears it
+	// and returns the client to managed mode.
+	UseExternalToken(token ExternalToken)
+
+	// InstalledToken returns the caller-owned token, or the zero value in
+	// managed mode.
+	InstalledToken() ExternalToken
+
 	// Auth [Authorization code ашиглан хэрэглэгчийн access token авах]
 	// See: POST https://z-wallet.monpay.mn/v2/oauth/token
 	Auth(input MiniAppAuthInput) (AccessToken, error)
@@ -250,6 +271,18 @@ func WithSyncAuth() Option {
 	}
 }
 
+// WithExternalToken [Caller-owned merchant token-ийг эхлүүлэхдээ шингээх]
+//
+// Installs a token the caller owns, putting the client in external mode from
+// the first call: it sends this token as-is and never mints or refreshes one.
+// Contrast [WithAccessToken], which seeds the SDK's own managed cache and
+// leaves refreshing to the SDK. See [ExternalToken].
+func WithExternalToken(token ExternalToken) Option {
+	return func(d *deeplink) {
+		d.externalToken = token
+	}
+}
+
 // WithAccessToken [Client credentials token-ийг гаднаас өгөх]
 func WithAccessToken(token AccessToken) Option {
 	return func(d *deeplink) {
@@ -277,7 +310,13 @@ func NewDeeplink(endpoint, id, secret, grantType, webhookUrl, redirectUrl string
 		opt(d)
 	}
 
-	if d.syncAuth {
+	// An installed ExternalToken means the caller owns the token, so the SDK
+	// must not mint one of its own — not even the background pre-warm, which
+	// would reach Monpay with credentials the caller never asked us to use.
+	switch {
+	case !d.externalToken.IsZero():
+		// external mode: nothing to pre-warm.
+	case d.syncAuth:
 		for i := 0; i < 3; i++ {
 			if _, err := d.getAccessToken(); err == nil {
 				break
@@ -286,7 +325,7 @@ func NewDeeplink(endpoint, id, secret, grantType, webhookUrl, redirectUrl string
 				time.Sleep(time.Second)
 			}
 		}
-	} else {
+	default:
 		go d.getAccessToken() //nolint:errcheck
 	}
 
